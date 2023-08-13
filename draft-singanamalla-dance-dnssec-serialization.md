@@ -88,9 +88,40 @@ Failures in caching however result in the recursive resolver performing the nece
 increased DNS response latency for DNSSEC validating stubs.
 
 
+TODO
++ novelty: share view of DNS, transport agnostic DNS format
++ replace https://datatracker.ietf.org/doc/html/rfc9102 ?
+
 # Conventions and Definitions
 
 {::boilerplate bcp14-tagged}
+
+MAY, MUST, and others
+
+# DNSSEC Serialization
+
+
+Construction (using a recursive resolver)
++ requirements on the dns resolver
++ state-machine
++ wireformat
+
+verification
++ state machine
++ error messages
++ authenticated denial
++ trust anchor and root key rotation/agility
+
+caching
++ expiration
++ pre-fetch
++ increase dns ttl?
+
+Modification of existing RFCs
+
++ request over DNS-o-UDP
++ request over DNS-o-TCP
++ request over DNS-o-HTTP
 
 
 # Security Considerations
@@ -108,9 +139,13 @@ We posit that the serialization of the necessary RRs and their RRSIGs by the rec
 adversely impact resolution latency (network). The cryptographic computational overheads to verify the serialized
 responses and the accompanying answer is minimal.
 
+TODO
++ overview of size overhead
++ UDP packet?
+
 # IANA Considerations
 
-This document has no IANA actions.
+Register SP field
 
 --- back
 
@@ -118,3 +153,10 @@ This document has no IANA actions.
 {:numbered="false"}
 
 TODO acknowledge.
+
+
+# Apendix
+
+## Test vectors
+
+TODO
