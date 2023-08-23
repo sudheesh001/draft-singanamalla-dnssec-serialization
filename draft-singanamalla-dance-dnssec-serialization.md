@@ -87,10 +87,10 @@ made by the client to the resolver which could be potentially cached by the reso
 Failures in caching however result in the recursive resolver performing the necessary queries again resulting in
 increased DNS response latency for DNSSEC validating stubs.
 
-
-TODO
-+ novelty: share view of DNS, transport agnostic DNS format
-+ replace https://datatracker.ietf.org/doc/html/rfc9102 ?
+The serialization mechanism with the complete DNSSEC verification chain enables resolvers to
+share their view of the DNS ecosystem. Additionally, the transport agnostic nature allows future
+DNS protocols, and application relying on DNS infrastructure to be easily interoperable allowing a higher
+focus on the transport layer innovations than addressing DNS interoperability.
 
 # Conventions and Definitions
 
@@ -100,29 +100,85 @@ MAY, MUST, and others
 
 # DNSSEC Serialization
 
+## Construction using a Recursive Resolver
 
-Construction (using a recursive resolver)
-+ requirements on the dns resolver
-+ state-machine
-+ wireformat
+The proposed standard requires a DNSSEC validating recursive resolver accepting client queries with the SP bit set.
+The resolver initializes secure connections to the respective nameservers in the resolution process of a client query
+and constructs the following `ZonePair` structure.
 
-verification
-+ state machine
-+ error messages
-+ authenticated denial
-+ trust anchor and root key rotation/agility
+~~~
+struct ZonePair {
+    Entering entry;
+    Leaving exit;
+}
+~~~
 
-caching
-+ expiration
-+ pre-fetch
-+ increase dns ttl?
+The `Entering` structure contains information about the `DNSKEY`s and associated (RRSIG) signatures `Signature` in
+addition to an integer `KeyIndex` indicating the starting level in the DNS hierarchy for the response data.
+Inclusion of the entire proof results in the `KeyIndex` value being set to 0 `root (.)`.
 
-Modification of existing RFCs
+The `Leaving` structures contain information about the `DS` records and corresponding RRSIGs necessary to authenticate
+the next level of the authentication chain. For the leaf of the query during resolution, the `Leaving` structures
+include the answer for the query and return the associated signatures when available.
 
-+ request over DNS-o-UDP
-+ request over DNS-o-TCP
-+ request over DNS-o-HTTP
+~~~
+struct Entering {
+    DNSKEY []RR;
+    Signature RRSIG;
+    KeyIndex uint8;
+}
 
+union Leaving {
+    struct Delegations {
+        DSRecords []RR;
+        Signature RRSIG;
+    };
+
+    struct Leaf {
+        Answer []RR;
+        Signature RRSIG;
+    };
+}
+~~~
+
+The resolver constructs an in-order sequence of list of `ZonePair`s containing the entire chain. For example:
+
+The resolution of the `A` records for the FQDN `example.com.`, results in the response being the length of X `ZonePairs`:
+
+~~~
+ZonePair[0]:
+    - Entering:
+        - DNSKEY (.)
+        - Signature
+        - KeyIndex (0)
+    - Leaving (Delegations):
+        - DSRecords (com.)
+        - Signature
+ZonePair[1]:
+    - Entering:
+        - DNSKEY (.com)
+        - Signature
+        - KeyIndex (1)
+    - Leaving (Delegations):
+        - DSRecords (example.com.)
+        - Signature
+ZonePair[2]:
+    - Entering:
+        - DNSKEY (example.com.)
+        - RRSIG
+        - KeyIndex (2)
+    - Leaving (Leaf):
+        - []RR (*dns.A)
+        - Signature
+~~~
+
+## Client
+
+## Verification
+
+## Resolver Cache Considerations
+
+## Modifications to Existing RFCs
 
 # Security Considerations
 
@@ -139,9 +195,9 @@ We posit that the serialization of the necessary RRs and their RRSIGs by the rec
 adversely impact resolution latency (network). The cryptographic computational overheads to verify the serialized
 responses and the accompanying answer is minimal.
 
-TODO
-+ overview of size overhead
-+ UDP packet?
+## Size Overheads
+
+## Measured Latency Overheads
 
 # IANA Considerations
 
@@ -154,9 +210,15 @@ Register SP field
 
 TODO acknowledge.
 
+## Test Vectors
+{:numbered="false"}
 
-# Apendix
+
+
+# Appendix
+{:numbered="false"}
 
 ## Test vectors
+{:numbered="false"}
 
 TODO
