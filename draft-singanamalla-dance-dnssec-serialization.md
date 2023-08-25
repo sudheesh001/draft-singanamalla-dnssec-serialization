@@ -174,7 +174,41 @@ ZonePair[2]:
 
 ## Client
 
+Clients communicate with a validating recursive resolver using the protocol of their choice and MUST set both the DO
+and SP bits in the DNS query sent to the recursive resolver. The resolver performs the required resolutions, serializes
+the proof and returns the serialized proof as a resource record in the ADDITIONAL section of the response as well as
+the answer associated with the query in the ANSWER section.
+
 ## Verification
+
+### Resolver Verification
+
+Similar to DNSSEC, a validating recursive resolver MUST individually validate the signed responses obtained from the
+various name servers during query resolution. All responses MUST be cryptographically valid for the serialization to be
+constructed. In case of failure, the server indicates a failed resolution with the appropriate SERVFAIL response code
+and return the invalid serialization to the client if the CD bit is set, in addition to the SP and DO bits.
+
+### Client Verification
+
+The clients obtaining the serialized responses follow the state machine transitions between ENTERING and LEAVING regions
+of the serialized responses. The client executes the following state machine:
+
+~~~
+BEGIN Verification(chain, starting_index=0):
+    for index, zone_pair in chain:
+        enter_validity = Verify(zone_pair.Entering.DNSKEYs, zone_pair.Entering.RRSIG)
+        if zone_pair.Leaving is not Leaf:
+            leaving_validity = Verify(zone_pair.Leaving.DSs, zone_pair.Leaving.RRSIG)
+            next_enter = HashCompareEqual(zone_pair.Leaving.DS, ToDS(chain[index+1].Entering.DNSKEY))
+            assertTrue(next_enter)
+        else:
+            leaving_validity = Verify(zone_pair.Leaving.Answer.TYPE, zone_pair.Leaving.Answer.RRSIG)
+        assertTrue(enter_validity && leaving_validity)
+    return True
+END
+~~~
+
+TODO: Need to integrate `starting_index` into the Verification mechanism.
 
 ## Resolver Cache Considerations
 
