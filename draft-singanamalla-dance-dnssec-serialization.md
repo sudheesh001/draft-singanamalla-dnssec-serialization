@@ -64,6 +64,12 @@ normative:
         =: RFC1035
     EDNS0:
         =: RFC6891
+    RFC1034:
+        =: RFC1034
+    RFC9102:
+        =: RFC9102
+    SERIALIZECHAIN:
+        =: I-D.agl-dane-serializechain-01
 
 informative:
 
@@ -97,7 +103,7 @@ focus on the transport layer innovations than addressing DNS interoperability.
 
 ## Construction using a Recursive Resolver
 
-A DNSSEC validating recursive resolver MAY accept DNS queries {{RFC??? Section??}} with the SP bit set.
+A DNSSEC validating recursive resolver MAY accept DNS queries {{Section 2.4 of RFC1034}} with the SP bit set.
 To process a client DNS query with SP bit set, a resolver MUST initialize an authenticated connection to
 the respective nameservers in the resolution process, and constructs the following `ZonePair` structure.
 
