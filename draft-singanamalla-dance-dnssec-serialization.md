@@ -338,6 +338,10 @@ clients using a validating recursive resolver delegate their trust to the resolv
 validation capabilities should be able to verify the correctness of the responses further reducing the amount
 of implicit trust placed in the resolver.
 
+Responses sent for the DNS queries include larger responses due to the existence of the serialized proof chain
+potentially resulting in DDoS attacks. Existing practices to prevent DDoS attacks for larger DNSSEC responses
+could continue to be considered and improved.
+
 # Performance Considerations
 
 We posit that the serialization of the necessary RRs and their RRSIGs by the recursive resolver does not
