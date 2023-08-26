@@ -55,7 +55,7 @@ author:
  -
     fullname: Thibault Meunier
     organization: Cloudflare
-    email: thibault@cloudflare.com
+    email: mail@thibaultmeunier.com
 
 normative:
     DNSSEC:
@@ -69,36 +69,25 @@ informative:
 
 --- abstract
 
-This document introduces a transport agnostic serialization format for recursive resolvers to
-respond to client requests with DNSSEC OK bit and a newly introduced Serialized Proof (SP) bit
-with a serialized response including the complete set of records that can be used to validate
-the DNSSEC chain. This proposal obviates the need to perform additional DNS RR queries for DNSKEY
-and DS records and their associated RRSIG signatures. This proposal is aimed at the communication
-between the client stub resolver and a recursive resolver delegated to perform the queries and can
-also be consumed by other transport mechanisms.
+This document introduces a DNSSEC serialization format. It is designed to enable recursive resolvers to provide
+the complete DNSSEC validation chain to DNS clients in one request on any transport. It is one mechanism to share
+a specific view of the DNS ecosystem and to ensure authenticity without imposing recursive resolution on clients.
 
 --- middle
 
 # Introduction
 
-This document introduces and describes an experimental extension and introduces a new DNS Flag bit (SP)
+This document describes a use of the DNS additional record section to transit a serialized DNSSEC proof, and
+introduces a new DNS Flag bit (SP)
 to be used in addition to DNSSEC OK (DO) indicating the client's intent to obtain a serialized proof of
-all necessary DNSSEC RRs to validate the chain. A recursive resolver performs the necessary queries and
-obtains the responses before responding to the client query with a direct answer. However, for DNSSEC aware
-clients, the response obtained from the recursive resolver containing the requested resource records and
-the corresponding signature RRSIG record results in additional queries to the resolver to obtain the DNSKEY
-and DS resource records along with their associated signature records. This results in additional DNS queries
-made by the client to the resolver. Failures in caching however result in the recursive resolver performing
-the necessary queries again resulting in increased DNS response latency for DNSSEC validating stubs.
-
-The serialization mechanism with the complete DNSSEC verification chain enables resolvers to
+all RRs necessary to validate the DNSSEC chain.
+A recursive resolver performs the necessary queries and
+obtains the responses before responding to the client query with a direct answer. The serialization
+mechanism with the complete DNSSEC verification chain enables resolvers to
 share their view of the DNS ecosystem. Additionally, the transport agnostic nature allows future
-DNS protocols, and application relying on DNS infrastructure to be easily interoperable allowing a higher
+DNS protocols, and applications relying on DNS infrastructure as a trust anchor to be interoperable allowing a higher
 focus on the transport layer innovations than addressing DNS interoperability.
-
-TODO: Is this really transport agnostic? Almost all transport mechanisms except DoH (application/json) mode
-support the same wire format serialization. Should we claim this, or make a statement about potential use
-cases about DNS view auditability from various resolvers?
+<!-- Examples for an email would be any kind of domain validation at the application layer: Certificate Authority, DNSLink, ENS, Bluesky, etc... -->
 
 # Conventions and Definitions
 
@@ -108,9 +97,9 @@ cases about DNS view auditability from various resolvers?
 
 ## Construction using a Recursive Resolver
 
-The proposed standard requires a DNSSEC validating recursive resolver accepting client queries with the SP bit set.
-The resolver initializes secure connections to the respective nameservers in the resolution process of a client query
-and constructs the following `ZonePair` structure.
+A DNSSEC validating recursive resolver MAY accept DNS queries {{RFC??? Section??}} with the SP bit set.
+To process a client DNS query with SP bit set, a resolver MUST initialize an authenticated connection to
+the respective nameservers in the resolution process, and constructs the following `ZonePair` structure.
 
 ~~~
 struct {
@@ -165,7 +154,7 @@ ZonePair[0]:
         - Signature
 ZonePair[1]:
     - Entering:
-        - DNSKEY (.com)
+        - DNSKEY (com.)
         - Signature
         - KeyIndex (1)
     - Leaving (Delegations):
@@ -183,13 +172,13 @@ ZonePair[2]:
 
 ## Client
 
-Clients communicate with a validating recursive resolver using the protocol of their choice and MUST set both the DO
+Clients MAY communicate with a validating recursive resolver using the protocol of their choice and MUST set both the DO
 and SP bits in the DNS query sent to the recursive resolver. The resolver performs the required resolutions, serializes
 the proof and returns the serialized proof as a resource record in the ADDITIONAL section of the response as well as
 the answer associated with the query in the ANSWER section.
 
-The client uses the OPT RR {{EDNS0}} and uses a new flag `SP` setting both the `DO` and `SP` bits to true, and the
-remaining flags Z set to zero by the client and ignored by the receiving resolver.
+The client uses the OPT RR {{EDNS0}} and uses flag `SP`. Both `DO` and `SP` bits MUST be true, and the
+remaining flags Z set to zero by the client. They SHOULD be ignored by the receiving resolver.
 
                 +0 (MSB)                            +1 (LSB)
        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
@@ -268,6 +257,8 @@ START     │                │              │                 │   COMPLETE
 
 ### Resolver Verification
 
+<!-- unclear -->
+
 Similar to DNSSEC, a validating recursive resolver MUST individually validate the signed responses obtained from the
 various name servers during query resolution. All responses MUST be cryptographically valid for the serialization to be
 constructed. In case of failure, the server indicates a failed resolution with the appropriate SERVFAIL response code
@@ -331,6 +322,8 @@ It looks like we are introducing new RRType and bits for which specific numbers 
 
 # Security Considerations
 
+<!-- TODO how does this protocol impact existing security -->
+
 Many public recursive resolvers today used by clients validate DNSSEC responses and protect their clients by
 returning a DNS Error Code (RCODE) in the response. However, responses to queries with the client DO bit set
 result in a partial response of the intended resource records and its corresponding signature. As a result,
@@ -344,14 +337,14 @@ could continue to be considered and improved.
 
 # Performance Considerations
 
-We posit that the serialization of the necessary RRs and their RRSIGs by the recursive resolver does not
+The serialization of the necessary RRs and their RRSIGs by the recursive resolver does not
 adversely impact resolution latency (network). The cryptographic computational overheads to verify the serialized
-responses and the accompanying answer is minimal.
+responses and the accompanying answer is minimal. This section provides indicational performance using an
+implementation of the proposal in Go. This implementation includes the entire proof chain with no optimizations for the queries.
 
 ## Size Overheads
 
-We implement the experimental proposal and include the entire proof chain with no optimizations for the queries.
-We perform resolutions for 10000 queries requesting the A records from the recursive resolver. The median size of the
+The following measurements are performed for 10000 queries requesting the A records from the recursive resolver. The median size of the
 response is 2172 Bytes indicating a 247% increase in size compared to the client recursively performing all the queries
 required to validate the DNSSEC responses. For various protocols, the sizes are the following:
 
@@ -365,8 +358,7 @@ required to validate the DNSSEC responses. For various protocols, the sizes are 
 
 ## Measured Latency Overheads
 
-The experimental standard proposed does not pose any additional latency overheads as seen in our experiments. The
-median response times for the queries including the proof compared to the Leaf only responses from a validating
+The median response times for the queries including the proof compared to the Leaf only responses from a validating
 recursive resolver are as follows:
 
 ~~~
@@ -387,6 +379,9 @@ Register SP field, SKIP resource record
 {:numbered="false"}
 
 TODO acknowledge.
+
+{{RFC9102}}
+{{SERIALIZECHAIN}}
 
 ## Test Vectors
 {:numbered="false"}
