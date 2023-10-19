@@ -1,0 +1,111 @@
+{
+  "magic": "E!vIA5L86J2I",
+  "timestamp": "2023-10-19T00:24:31.897004+00:00",
+  "repo": "sudheesh001/draft-singanamalla-dance-dnssec-serialization",
+  "labels": [
+    {
+      "name": "bug",
+      "description": "Something isn't working",
+      "color": "d73a4a"
+    },
+    {
+      "name": "documentation",
+      "description": "Improvements or additions to documentation",
+      "color": "0075ca"
+    },
+    {
+      "name": "duplicate",
+      "description": "This issue or pull request already exists",
+      "color": "cfd3d7"
+    },
+    {
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "name": "good first issue",
+      "description": "Good for newcomers",
+      "color": "7057ff"
+    },
+    {
+      "name": "help wanted",
+      "description": "Extra attention is needed",
+      "color": "008672"
+    },
+    {
+      "name": "invalid",
+      "description": "This doesn't seem right",
+      "color": "e4e669"
+    },
+    {
+      "name": "question",
+      "description": "Further information is requested",
+      "color": "d876e3"
+    },
+    {
+      "name": "wontfix",
+      "description": "This will not be worked on",
+      "color": "ffffff"
+    }
+  ],
+  "issues": [],
+  "pulls": [
+    {
+      "number": 1,
+      "id": "PR_kwDOKEKEgc5XykXb",
+      "title": "First bullet points",
+      "url": "https://github.com/sudheesh001/draft-singanamalla-dance-dnssec-serialization/pull/1",
+      "state": "MERGED",
+      "author": "thibmeu",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "",
+      "createdAt": "2023-08-12T13:21:32Z",
+      "updatedAt": "2023-08-13T19:50:04Z",
+      "baseRepository": "sudheesh001/draft-singanamalla-dance-dnssec-serialization",
+      "baseRefName": "main",
+      "baseRefOid": "713ca981c731477dfc6ae1a95974a20679dca7c4",
+      "headRepository": "thibmeu/draft-singanamalla-dance-dnssec-serialization",
+      "headRefName": "main",
+      "headRefOid": "4b5da0d1a30c7cb09d17552735ebe0d0a15b8400",
+      "closedAt": "2023-08-13T19:50:04Z",
+      "mergedAt": "2023-08-13T19:50:04Z",
+      "mergedBy": "sudheesh001",
+      "mergeCommit": {
+        "oid": "6cff8aa298e89630664096ba131619535102cce0"
+      },
+      "comments": [],
+      "reviews": []
+    },
+    {
+      "number": 2,
+      "id": "PR_kwDOKEKEgc5Y26it",
+      "title": "Update intro and wording",
+      "url": "https://github.com/sudheesh001/draft-singanamalla-dance-dnssec-serialization/pull/2",
+      "state": "MERGED",
+      "author": "thibmeu",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "",
+      "createdAt": "2023-08-26T21:15:28Z",
+      "updatedAt": "2023-08-26T21:56:05Z",
+      "baseRepository": "sudheesh001/draft-singanamalla-dance-dnssec-serialization",
+      "baseRefName": "main",
+      "baseRefOid": "80d82ba4e5b4df4e2f9fe0b34747cfc0eae27a49",
+      "headRepository": "thibmeu/draft-singanamalla-dance-dnssec-serialization",
+      "headRefName": "main",
+      "headRefOid": "f778851759453df636ac7edf3ad8c69ee264c750",
+      "closedAt": "2023-08-26T21:56:05Z",
+      "mergedAt": "2023-08-26T21:56:04Z",
+      "mergedBy": "sudheesh001",
+      "mergeCommit": {
+        "oid": "f778851759453df636ac7edf3ad8c69ee264c750"
+      },
+      "comments": [],
+      "reviews": []
+    }
+  ]
+}
