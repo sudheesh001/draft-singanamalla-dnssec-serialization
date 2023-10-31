@@ -76,7 +76,7 @@ informative:
 --- abstract
 
 This document introduces a DNSSEC serialization format. It is designed to enable recursive resolvers to provide
-the complete DNSSEC validation chain to DNS clients in one request on any transport. It is one mechanism to share
+the complete DNSSEC validation chain to DNS clients in one request over any transport. It is one mechanism to share
 a specific view of the DNS ecosystem and to ensure authenticity without imposing recursive resolution on clients.
 
 --- middle
@@ -85,7 +85,7 @@ a specific view of the DNS ecosystem and to ensure authenticity without imposing
 
 This document describes a use of the DNS additional record section to transit a serialized DNSSEC proof, and
 introduces a new DNS Flag bit (SP)
-to be used in addition to DNSSEC OK (DO) indicating the client's intent to obtain a serialized proof of
+to be used, in addition to DNSSEC OK (DO), to indicate the client's intent to obtain a serialized proof of
 all RRs necessary to validate the DNSSEC chain.
 A recursive resolver performs the necessary queries and
 obtains the responses before responding to the client query with a direct answer. The serialization
@@ -105,75 +105,125 @@ focus on the transport layer innovations than addressing DNS interoperability.
 
 A DNSSEC validating recursive resolver MAY accept DNS queries {{Section 2.4 of RFC1034}} with the SP bit set.
 To process a client DNS query with SP bit set, a resolver MUST initialize an authenticated connection to
-the respective nameservers in the resolution process, and constructs the following `ZonePair` structure.
+the respective name servers in the resolution process, and construct the following data structures.
+
+The following structures comprise a single resource yet, but are also designed hold well-formed resource records within them in a nested structure.
+
+Each resource record contains an `RR_Header` structure. 
+The `RR_Header` structure is a resource record header {{{{Section 3.2.1 of RFC1035}}}}, which we keep in place, to maintain backwards compatibility with clients and libraries who are expecting well-formed resource records. The structure of `RR_Header` is the following.
 
 ~~~
-struct {
-    Entering entry;
-    Leaving exit;
-} ZonePair;
+type RR_Header struct {
+	Name     string
+	Rrtype   uint16
+	Class    uint16
+	Ttl      uint32
+	Rdlength uint16
+}
 ~~~
 
-The `Entering` structure contains information about the `DNSKEY`s and associated (RRSIG) signatures `Signature` in
-addition to an integer `KeyIndex` indicating the starting level in the DNS hierarchy for the response data.
-Inclusion of the entire proof results in the `KeyIndex` value being set to 0 `root (.)`.
+`RR_Header` MAY contain values in any of the fields, but does not need to. These are not used in verification, but could be used for debugging. 
 
-The `Leaving` structures contain information about the `DS` records and corresponding RRSIGs necessary to authenticate
-the next level of the authentication chain. For the leaf of the query during resolution, the `Leaving` structures
-include the answer for the query and return the associated signatures when available.
-
-The `DNSKEY`, `DS`, and `RRSIG` records follow the uncompressed wire format DNS RRs described in {{DNSSEC}} and
-{{RDATA}}.
+The core structure of this DNSSEC chain serialization protocol is the `Zone` structure. It MUST contain the domain name of the DNS zone in `Name`, the zone name of the previously traversed zone in `PreviousName`, and the index of the zone signing key (ZSK) used to sign the enclosed records `ZSKIndex`. The remaining fields are either lists of resource records of a particular type, or an 8-bit unsigned integer representing the number of records in each list. The resource records contained in lists include `DNSKEY`, `RRSIG DNSKEY`, `DS`, and `RRSIG DS`. The `Leaves` list contains resource records that are unknown until they are received. Their type depends on the DNS configuration---the types of resource records in `Leaves` MAY be any resource record type not already listed. The final field, `LeavesSigs`, contains the list of `RRSIG`s of the resource records in `Leaves`. The `DS`, `DNSKEY`, `RRSIG`, and leaf records all MUST follow the uncompressed wire format DNS RRs described in {{DNSSEC}} and {{RDATA}}.
 
 ~~~
-struct {
-    DNSKEY []RR;
-    Signature RRSIG;
-    KeyIndex uint8;
-} Entering;
-
-union {
-    struct {
-        DSRecords []RR;
-        Signature RRSIG;
-    } Delegations;
-
-    struct {
-        Answer []RR;
-        Signature RRSIG;
-    } Leaf;
-} Leaving;
+type Zone struct {
+	Hdr           RR_Header
+	Name          Name 
+	PreviousName  Name 
+	ZSKIndex      uint8
+	NumKeys       uint8
+	Keys          []DNSKEY 
+	NumKeySigs    uint8
+	KeySigs       []RRSIG
+	NumDS         uint8
+	DSSet         []DS
+	NumDSSigs     uint8
+	DSSigs        []RRSIG
+	NumLeaves     uint8
+	Leaves        []RR
+	NumLeavesSigs uint8
+	LeavesSigs    []RRSIG
+}
 ~~~
 
-The resolver constructs an in-order sequence of list of `ZonePair`s containing the entire chain. For example:
 
-The resolution of the `A` records for the FQDN `example.com.`, results in the response being the length of X `ZonePairs`:
+These zones are listed the topmost data structure called `Chain` (see below). In `Chain`, the field `NumZones` stores the number of `Zone`s in `Zones`. These `Zones` are traversed during verification.
 
 ~~~
-ZonePair[0]:
-    - Entering:
-        - DNSKEY (.)
-        - Signature
-        - KeyIndex (0)
-    - Leaving (Delegations):
-        - DSRecords (com.)
-        - Signature
-ZonePair[1]:
-    - Entering:
-        - DNSKEY (com.)
-        - Signature
-        - KeyIndex (1)
-    - Leaving (Delegations):
-        - DSRecords (example.com.)
-        - Signature
-ZonePair[2]:
-    - Entering:
+type Chain struct {
+	Hdr           RR_Header
+	Version       uint8
+	InitialKeyTag uint16
+	StartingZone  uint8
+	NumZones      uint8
+	Zones         []Zone
+}
+~~~
+
+
+The `Version` field of `Chain` MUST contain the version number of this DNSSEC serialization protocol. This draft describes version 1. The `InitialKeyTag` field MUST contain a short digest of the trust anchor's key signing key (KSK) or be set to zero to use the IANA root. The integer `StartingZone` indicates the starting level in the DNS hierarchy for the response data. A `KeyIndex` value being set to 0, means the entire proof chain all the way to the root (.) is included.
+
+The resolution of the `AAAA` records for the FQDN `example.com.`, results in a response with three `Zone`s:
+
+~~~
+Zone[0]:
+    - Hdr
+    - Name (example.com.)
+    - PreviousName (NONE)
+    - ZSKIndex
+    - NumKeys (1)
+    - Keys
         - DNSKEY (example.com.)
-        - RRSIG
-        - KeyIndex (2)
-    - Leaving (Leaf):
-        - []RR (*dns.A)
-        - Signature
+    - NumKeySigs (1)
+    - KeySigs
+        - Signature (example.com.)
+    - NumDS (1)
+    - DSSet
+        - DS (com.)
+    - NumDSSigs (1)
+    - DSSigs
+        - Signature (com.)
+    - NumLeaves (1)
+    - Leaves
+        - RR (AAAA)
+    - NumLeavesSigs (1)
+    - LeavesSigs
+        - Signature (AAAA)
+Zone[1]:
+    - Hdr
+    - Name (com.)
+    - PreviousName (example.com.)
+    - ZSKIndex
+    - NumKeys (1)
+    - Keys
+        - DNSKEY (com.)
+    - NumKeySigs (1)
+    - KeySigs
+        - Signature (com.)
+    - NumDS (1)
+    - DSSet
+        - DS (.)
+    - NumDSSigs (1)
+    - DSSigs
+        - Signature (.)
+Zone[2]:
+    - Hdr
+    - Name (.)
+    - PreviousName (com.)
+    - ZSKIndex
+    - NumKeys (1)
+    - Keys
+        - DNSKEY (.)
+    - NumKeySigs (1)
+    - KeySigs
+        - Signature (.)
+    - NumDS (1)
+    - DSSet
+        - DS (.)
+    - NumDSSigs (1)
+    - DSSigs
+        - Signature (.)
 ~~~
 
 ## Client
@@ -208,58 +258,13 @@ struct {
 } SKIP;
 ~~~
 
-The value of `KeyIndex` starting at `0` indicates that no levels of the proof chain are skipped by the resolver when
-the serialized response is returned to the client. Similarly, the value `1` indicates one level of the chain starting
-from one level below the root i.e. TLD, in the serialized response. This is an OPTIONAL optimization a client could use to
+The value of `InitialKeyIndex` starting at `0` indicates that no levels of the proof chain are skipped by the resolver when
+the serialized response is returned to the client. Alternatively, providing a digest of the trust anchor's key signing key (KSK) indicates where the client can stop validating as it traverses the DNS hierarchy. This is an OPTIONAL optimization a client could use to
 provide hints to the resolver in an attempt to reduce the size of the serialized DNS message on the wire. The records
-skipped would include the `Entering` and `Leaving` structures for all indices of the chain less than the indicated level
-, and `Entering` structure for the matching level. Skip indices less than 0 and greater than the expected length of the
-query SHOULD BE treated as invalid and a corresponding error response code SERVFAIL is returned to the client.
-
-For example, a client with a SKIP RR, and KeyIndex 1 for the query provided in the example above would result in:
-
-~~~
-ZonePair[0]:
-    - Entering: NULL
-    - Leaving (Delegations):
-        - DSRecords (example.com.)
-        - Signature
-ZonePair[1]:
-    - Entering:
-        - DNSKEY (example.com.)
-        - RRSIG
-        - KeyIndex (2)
-    - Leaving (Leaf):
-        - []RR (*dns.A)
-        - Signature
-~~~
+skipped would be the `Zone` structures for all zones beyond the purview of the provided trust anchor. 
 
 The client COULD leverage this optimization when a cache containing the validated DNSKEYs, DS records are cached
 preventing repeated transmission of the response data or cryptographic verifications.
-
-## Verification
-
-~~~
-                  MATCH DS IN PARENT TO ZSK CHILD
-                 ┌─────────────────────────────────┐
-                 │                                 │
-                 │                                 │
-                 ▼                                 │
-          ┌────────────────┐              ┌────────┴────────┐
-          │                │              │                 │
-START     │                │              │                 │   COMPLETE
-─────────►│    ENTERING    ├─────────────►│    LEAVING      ├────────►
-          │                │              │                 │
-          │                │              │                 │
-          └────────────────┘              └─────────────────┘
-
-                 DNSKEY                       DS    │ Verified using ZSK
-                   ZSK    │                   RRSIG │
-                   KSK    ├── Integrity
-                   RRSIG  │    of Keys
-            ──────────────┘                   Answer│ Verified using ZSK
-             Verified using KSK               RRSIG │
-~~~
 
 ### Resolver Verification
 
@@ -276,28 +281,29 @@ and the chain is updated accordingly.
 
 ### Client Verification
 
-The clients obtaining the serialized responses follow the state machine transitions between ENTERING and LEAVING regions
-of the serialized responses. The client executes the following algorithm:
+The clients obtaining the serialized responses pop `Zone`s off the . The client executes the following algorithm:
 
 ~~~
-BEGIN Verification(query, chain, starting_index=0):
-  UpdateChain(query, &chain, starting_index)
-  for index, zone_pair in chain:
-    enter_validity = Verify(zone_pair.Entering.DNSKEYs,
-                            zone_pair.Entering.RRSIG,
-                            getKSK(zone_pair.Entering.DNSKEYs))
-    if zone_pair.Leaving is not Leaf:
-      leaving_validity = Verify(zone_pair.Leaving.DSs,
-                                  zone_pair.Leaving.RRSIG,
-                                  getZSK(zone_pair.Entering.DNSKEYs))
-      next_enter = HashCompareEqual(zone_pair.Leaving.DS,
-                                  ToDS(chain[index+1].Entering.DNSKEY))
-      assertTrue(next_enter)
+BEGIN Verification(query, chain, starting_zone):
+  UpdateChain(query, &chain, starting_zone)
+  for index, zone in chain.Zones:
+    key_validity = Verify(zone.Keys,
+                          zone.KeySigs,
+                          getKSK(zone.Keys))
+    assertTrue(key_validity)
+
+    if length(zone.Leaves) == 0:
+      ds_sig_validity = Verify(zone.DSSet,
+                               zone.DSSigs, 
+                               getZSKs(zone.Keys))
+      ds_hash_validity = HashCompareEqual(zone.DSSet,
+                                          ToDS(getKSK(chain.Zones[index+1].Keys)))
+      assertTrue(ds_sig_validity && ds_hash_validity)
     else:
-      leaving_validity = Verify(zone_pair.Leaving.Answer.TYPE,
-                                  zone_pair.Leaving.Answer.RRSIG,
-                                  getZSK(zone_pair.Entering.DNSKEYs)))
-    assertTrue(enter_validity && leaving_validity)
+      leaves_sig_validity = Verify(zone.Leaves,
+                                   zone.LeavesSigs, 
+                                   getZSKs(zone.Keys))
+      assertTrue(leaves_sig_validity)
   return True
 END
 ~~~
@@ -313,8 +319,8 @@ to the root trust anchors, the DNSKEYs from the cache at the domain hierarchy le
 signatures associated with the Leaving section of the first element in the chain. In the example presented above:
 
 ~~~
-COM_DNSKEY = LookupCache(.com., DNSKEY)
-Verify(chain[0].Leaving.DS, chain[0].Leaving.RRSIG, COM_DNSKEY)
+COM_DNSKEY = getZsk(LookupCache(.com., DNSKEY))
+Verify(chain.Zones[0].DSSet, chain.Zones[0].DSSigs, COM_DNSKEY)
 ~~~
 
 ## Resolver Cache Considerations
