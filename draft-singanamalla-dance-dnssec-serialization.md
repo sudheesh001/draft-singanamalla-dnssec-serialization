@@ -109,7 +109,7 @@ the respective name servers in the resolution process, and construct the followi
 
 The following structures comprise a single resource yet, but are also designed hold well-formed resource records within them in a nested structure.
 
-Each resource record contains an `RR_Header` structure. 
+Each resource record contains an `RR_Header` structure.
 The `RR_Header` structure is a resource record header {{{{Section 3.2.1 of RFC1035}}}}, which we keep in place, to maintain backwards compatibility with clients and libraries who are expecting well-formed resource records. The structure of `RR_Header` is the following.
 
 ~~~
@@ -122,18 +122,18 @@ type RR_Header struct {
 }
 ~~~
 
-`RR_Header` MAY contain values in any of the fields, but does not need to. These are not used in verification, but could be used for debugging. 
+`RR_Header` MAY contain values in any of the fields, but does not need to. These are not used in verification, but could be used for debugging.
 
 The core structure of this DNSSEC chain serialization protocol is the `Zone` structure. It MUST contain the domain name of the DNS zone in `Name`, the zone name of the previously traversed zone in `PreviousName`, and the index of the zone signing key (ZSK) used to sign the enclosed records `ZSKIndex`. The remaining fields are either lists of resource records of a particular type, or an 8-bit unsigned integer representing the number of records in each list. The resource records contained in lists include `DNSKEY`, `RRSIG DNSKEY`, `DS`, and `RRSIG DS`. The `Leaves` list contains resource records that are unknown until they are received. Their type depends on the DNS configuration---the types of resource records in `Leaves` MAY be any resource record type not already listed. The final field, `LeavesSigs`, contains the list of `RRSIG`s of the resource records in `Leaves`. The `DS`, `DNSKEY`, `RRSIG`, and leaf records all MUST follow the uncompressed wire format DNS RRs described in {{DNSSEC}} and {{RDATA}}.
 
 ~~~
 type Zone struct {
 	Hdr           RR_Header
-	Name          Name 
-	PreviousName  Name 
+	Name          Name
+	PreviousName  Name
 	ZSKIndex      uint8
 	NumKeys       uint8
-	Keys          []DNSKEY 
+	Keys          []DNSKEY
 	NumKeySigs    uint8
 	KeySigs       []RRSIG
 	NumDS         uint8
@@ -261,7 +261,7 @@ struct {
 The value of `InitialKeyIndex` starting at `0` indicates that no levels of the proof chain are skipped by the resolver when
 the serialized response is returned to the client. Alternatively, providing a digest of the trust anchor's key signing key (KSK) indicates where the client can stop validating as it traverses the DNS hierarchy. This is an OPTIONAL optimization a client could use to
 provide hints to the resolver in an attempt to reduce the size of the serialized DNS message on the wire. The records
-skipped would be the `Zone` structures for all zones beyond the purview of the provided trust anchor. 
+skipped would be the `Zone` structures for all zones beyond the purview of the provided trust anchor.
 
 The client COULD leverage this optimization when a cache containing the validated DNSKEYs, DS records are cached
 preventing repeated transmission of the response data or cryptographic verifications.
@@ -294,14 +294,19 @@ BEGIN Verification(query, chain, starting_zone):
 
     if length(zone.Leaves) == 0:
       ds_sig_validity = Verify(zone.DSSet,
-                               zone.DSSigs, 
+                               zone.DSSigs,
                                getZSKs(zone.Keys))
       ds_hash_validity = HashCompareEqual(zone.DSSet,
-                                          ToDS(getKSK(chain.Zones[index+1].Keys)))
+                                          ToDS(
+                                            getKSK(
+                                              chain.Zones[index+1].Keys
+                                            )
+                                          )
+                                         )
       assertTrue(ds_sig_validity && ds_hash_validity)
     else:
       leaves_sig_validity = Verify(zone.Leaves,
-                                   zone.LeavesSigs, 
+                                   zone.LeavesSigs,
                                    getZSKs(zone.Keys))
       assertTrue(leaves_sig_validity)
   return True
